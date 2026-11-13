@@ -61,18 +61,12 @@ td.today .n{background:#17697a;color:#fff}
 
 <div id="ov"><div id="box">
  <h2>Link Google Calendar</h2>
- <p><b>Option A: your own calendars (private).</b> Needs an OAuth Client ID. Sign-in lasts one hour, then tap Connect again.</p>
- <label for="f-client">OAuth Client ID</label>
- <input id="f-client" autocapitalize="off" autocorrect="off">
- <p><b>Option B: one public calendar.</b> Needs an API key and a calendar that is shared publicly.</p>
- <label for="f-key">API key</label>
+ <p>Paste the web app address and secret key from your Google script.</p>
+ <label for="f-url">Web app address</label>
+ <input id="f-url" autocapitalize="off" autocorrect="off">
+ <label for="f-key">Secret key</label>
  <input id="f-key" autocapitalize="off" autocorrect="off">
- <label for="f-pub">Public calendar ID</label>
- <input id="f-pub" autocapitalize="off" autocorrect="off" placeholder="name@gmail.com">
- <p>Page address to allow in Google Cloud: <b id="here"></b></p>
- <div class="row">
-  <button id="close">Close</button><button id="save">Save</button><button id="conn" class="pri">Connect Google</button>
- </div>
+ <div class="row"><button id="close">Close</button><button id="save" class="pri">Save</button></div>
 </div></div>
 
 <script>
@@ -82,15 +76,13 @@ td.today .n{background:#17697a;color:#fff}
  var $ = function (i) { return document.getElementById(i); };
  var store = {
   get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-  set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
-  del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
+  set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
  };
- var cfg = { client: store.get('gc_client') || '', key: store.get('gc_key') || '', pub: store.get('gc_pub') || '' };
- var tok = store.get('gc_tok'), exp = +store.get('gc_exp') || 0;
+ var cfg = { url: store.get('gs_url') || '', key: store.get('gs_key') || '' };
  var now = new Date();
  var cur = new Date(now.getFullYear(), now.getMonth(), 1);
  var sel = new Date(now.getFullYear(), now.getMonth(), now.getDate());
- var events = {}, gen = 0, SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+ var events = {}, gen = 0;
 
  function pad(n) { return n < 10 ? '0' + n : '' + n; }
  function key(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -98,85 +90,45 @@ td.today .n{background:#17697a;color:#fff}
  function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
  function fmt(d) { var h = d.getHours(), m = d.getMinutes(); return (h % 12 || 12) + (m ? ':' + pad(m) : '') + (h < 12 ? ' am' : ' pm'); }
  function gridStart() { return new Date(cur.getFullYear(), cur.getMonth(), 1 - cur.getDay()); }
- function signedIn() { return tok && Date.now() < exp; }
  function status(t) { $('status').textContent = t; }
 
- // Finish Google sign-in: the access token comes back in the URL hash.
- if (location.hash.indexOf('access_token=') > -1) {
-  var h = {};
-  location.hash.slice(1).split('&').forEach(function (p) { var kv = p.split('='); h[kv[0]] = decodeURIComponent(kv[1] || ''); });
-  tok = h.access_token; exp = Date.now() + (+h.expires_in || 3600) * 1000 - 60000;
-  store.set('gc_tok', tok); store.set('gc_exp', exp);
-  if (history.replaceState) history.replaceState(null, '', location.pathname);
-}
-
- function api(path, params, cb) {
-  var q = [], k;
-  for (k in params) q.push(k + '=' + encodeURIComponent(params[k]));
-  var useTok = signedIn();
-  if (!useTok && cfg.key) q.push('key=' + encodeURIComponent(cfg.key));
-  var x = new XMLHttpRequest();
-  x.open('GET', 'https://www.googleapis.com/calendar/v3/' + path + '?' + q.join('&'));
-  if (useTok) x.setRequestHeader('Authorization', 'Bearer ' + tok);
-  x.onload = function () {
-   var j; try { j = JSON.parse(x.responseText); } catch (e) {}
-   if (x.status === 200) cb(null, j); else cb((j && j.error && j.error.message) || ('Error ' + x.status));
-  };
-  x.onerror = function () { cb('Network error. Check the connection.'); };
-  x.send();
- }
-
- function addEvent(ev, c) {
-  if (!ev.start || !ev.end) return;
-  var allDay = !!ev.start.date, s, e;
-  if (allDay) { s = parseDay(ev.start.date); e = parseDay(ev.end.date); }
-  else { s = new Date(ev.start.dateTime); e = new Date(ev.end.dateTime); }
+ function add(it) {
+  var a = it.a, s = a ? parseDay(it.s) : new Date(it.s), e = a ? parseDay(it.e) : new Date(it.e);
   var d = new Date(s.getFullYear(), s.getMonth(), s.getDate()), i = 0;
   for (; i === 0 || d < e; i++, d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
    var k = key(d);
    (events[k] = events[k] || []).push({
-    t: ev.summary || '(No title)', s: s, allDay: allDay, loc: ev.location || '',
-    time: allDay ? 'All day' : fmt(s) + ' to ' + fmt(e), bg: c.backgroundColor || '#17697a', fg: c.foregroundColor || '#fff'
+    t: it.t || '(No title)', s: s, allDay: a, loc: it.l || '',
+    time: a ? 'All day' : fmt(s) + ' to ' + fmt(e), bg: it.c || '#17697a', fg: '#fff'
    });
   }
  }
 
- function fetchAll(list, g, start, end) {
-  var pending = list.length;
-  if (!pending) { render(); status('No calendars found.'); return; }
-  list.forEach(function (c) {
-   api('calendars/' + encodeURIComponent(c.id) + '/events', {
-    timeMin: start.toISOString(), timeMax: end.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '250'
-   }, function (err, d) {
-    if (g !== gen) return;
-    if (err) status(err); else (d.items || []).forEach(function (ev) { addEvent(ev, c); });
-    if (--pending === 0) {
-     for (var k in events) events[k].sort(function (a, b) { return (b.allDay - a.allDay) || (a.s - b.s); });
-     render(); if (!err) status('Updated ' + fmt(new Date()));
-    }
-   });
-  });
- }
-
+ // Events arrive through a script tag (JSONP), which works on old Safari without CORS.
  function load() {
   var g = ++gen, start = gridStart();
   var end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 42);
   events = {};
-  if (!signedIn() && !(cfg.key && cfg.pub)) {
-   render();
-   status(tok ? 'Google sign-in expired. Open Settings and tap Connect.' : 'Not linked yet. Open Settings to link Google Calendar.');
-   return;
-  }
+  if (!cfg.url || !cfg.key) { render(); status('Not linked yet. Open Settings and paste your script address.'); return; }
   status('Loading…');
-  if (signedIn()) {
-   api('users/me/calendarList', { minAccessRole: 'reader' }, function (err, d) {
-    if (g !== gen) return;
-    if (err) { render(); status(err); return; }
-    fetchAll((d.items || []).filter(function (c) { return c.selected !== false; }).slice(0, 10), g, start, end);
-   });
-  } else {
-   fetchAll([{ id: cfg.pub, backgroundColor: '#17697a', foregroundColor: '#fff' }], g, start, end);
-  }
+  var name = 'cb' + g, s = document.createElement('script'), done = false;
+  function cleanup() { window[name] = function () {}; if (s.parentNode) s.parentNode.removeChild(s); }
+  window[name] = function (d) {
+   if (g !== gen) return;
+   done = true; cleanup();
+   if (d.error) { render(); status(d.error); return; }
+   d.items.forEach(add);
+   for (var k in events) events[k].sort(function (a, b) { return (b.allDay - a.allDay) || (a.s - b.s); });
+   render(); status('Updated ' + fmt(new Date()));
+  };
+  setTimeout(function () {
+   if (done || g !== gen) return;
+   cleanup(); render();
+   status('No response. Check the address, and that the script is shared with Anyone.');
+  }, 20000);
+  s.src = cfg.url + (cfg.url.indexOf('?') > -1 ? '&' : '?') + 'key=' + encodeURIComponent(cfg.key) +
+   '&start=' + encodeURIComponent(start.toISOString()) + '&end=' + encodeURIComponent(end.toISOString()) + '&callback=' + name;
+  document.body.appendChild(s);
  }
 
  function render() {
@@ -229,23 +181,12 @@ td.today .n{background:#17697a;color:#fff}
  $('prev').onclick = function () { go(-1); };
  $('next').onclick = function () { go(1); };
  $('today').onclick = function () { var n = new Date(); cur = new Date(n.getFullYear(), n.getMonth(), 1); sel = new Date(n.getFullYear(), n.getMonth(), n.getDate()); load(); };
-
- function saveCfg() {
-  cfg.client = $('f-client').value.replace(/\s/g, ''); cfg.key = $('f-key').value.replace(/\s/g, ''); cfg.pub = $('f-pub').value.replace(/\s/g, '');
-  store.set('gc_client', cfg.client); store.set('gc_key', cfg.key); store.set('gc_pub', cfg.pub);
- }
- $('set').onclick = function () {
-  $('f-client').value = cfg.client; $('f-key').value = cfg.key; $('f-pub').value = cfg.pub;
-  $('here').textContent = location.origin + location.pathname; $('ov').style.display = 'block';
- };
+ $('set').onclick = function () { $('f-url').value = cfg.url; $('f-key').value = cfg.key; $('ov').style.display = 'block'; };
  $('close').onclick = function () { $('ov').style.display = 'none'; };
- $('save').onclick = function () { saveCfg(); $('ov').style.display = 'none'; load(); };
- $('conn').onclick = function () {
-  saveCfg();
-  if (!cfg.client) { alert('Enter an OAuth Client ID first.'); return; }
-  location.href = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(cfg.client) +
-   '&redirect_uri=' + encodeURIComponent(location.origin + location.pathname) +
-   '&response_type=token&scope=' + encodeURIComponent(SCOPE) + '&prompt=select_account';
+ $('save').onclick = function () {
+  cfg.url = $('f-url').value.replace(/\s/g, ''); cfg.key = $('f-key').value.replace(/\s/g, '');
+  store.set('gs_url', cfg.url); store.set('gs_key', cfg.key);
+  $('ov').style.display = 'none'; load();
  };
 
  render(); load();
