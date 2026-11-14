@@ -4,34 +4,29 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Calendar</title>
+<title>This week</title>
 <style>
 /* Written for iOS 9 Safari: no grid, no fetch, no ES modules. */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:#e9edf1;color:#1c2833;font:16px/1.35 "Helvetica Neue",Helvetica,Arial,sans-serif}
-#app{padding:12px;overflow:hidden}
-header{height:56px}
-h1{float:left;margin:0;font:normal 32px/56px Georgia,serif}
-.bar{float:right;padding-top:6px}
-button{font:inherit;border:1px solid #b9c3cd;background:#fff;color:#1c2833;border-radius:8px;padding:0 16px;height:44px;margin-left:8px;-webkit-appearance:none}
+#app{padding:12px}
+header{height:52px;overflow:hidden}
+h1{float:left;margin:0;font:normal 30px/52px Georgia,serif}
+.bar{float:right;line-height:52px}
+#status{font-size:13px;color:#5d6b79;vertical-align:middle}
+button{font:inherit;border:1px solid #b9c3cd;background:#fff;color:#1c2833;border-radius:8px;padding:0 16px;height:44px;margin-left:12px;vertical-align:middle;-webkit-appearance:none}
 button.pri{background:#17697a;border-color:#17697a;color:#fff}
-#cal{float:left;width:66%;padding-right:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;background:#fff}
-th{font-size:13px;font-weight:normal;color:#5d6b79;padding:8px;text-align:left;border:1px solid #dbe1e7}
-td{height:12.5vh;border:1px solid #dbe1e7;vertical-align:top;padding:4px;overflow:hidden}
-td.out{background:#f4f6f8;color:#9aa6b2}
-td.sel{box-shadow:inset 0 0 0 3px #17697a}
-.n{display:inline-block;min-width:26px;height:26px;line-height:26px;text-align:center;border-radius:13px;font-size:15px}
-td.today .n{background:#17697a;color:#fff}
-.ev{display:block;font-size:12px;line-height:17px;margin-top:2px;padding:0 5px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.more{font-size:12px;color:#5d6b79;margin-top:2px}
-#side{float:left;width:34%;height:80vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #dbe1e7;padding:16px}
-#side h2{margin:0 0 12px;font:normal 24px/1.2 Georgia,serif}
-.item{border-left:5px solid #17697a;padding:2px 0 2px 10px;margin-bottom:14px}
-.item b{display:block;font-weight:600}
-.item span{color:#5d6b79;font-size:14px;display:block}
-.empty{color:#5d6b79}
-#status{margin-top:16px;font-size:13px;color:#5d6b79}
+th{padding:8px;text-align:left;font-weight:normal;color:#5d6b79;font-size:14px;border:1px solid #dbe1e7}
+th b{display:inline-block;min-width:32px;height:32px;line-height:32px;text-align:center;border-radius:16px;font-size:20px;font-weight:normal;color:#1c2833;margin-left:4px;vertical-align:middle}
+th.today b{background:#17697a;color:#fff}
+td{border:1px solid #dbe1e7;vertical-align:top;padding:0}
+td.today{background:#eef7f8}
+.col{height:70vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px}
+.item{border-left:4px solid #17697a;padding:2px 0 2px 7px;margin-bottom:10px}
+.item b{display:block;font-weight:600;font-size:15px}
+.item span{display:block;color:#5d6b79;font-size:13px}
+.empty{color:#9aa6b2;font-size:13px}
 #ov{display:none;position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(28,40,51,.55);overflow:auto;-webkit-overflow-scrolling:touch;z-index:9}
 #box{background:#fff;max-width:560px;margin:24px auto;padding:20px;border-radius:10px}
 #box h2{margin:0 0 8px;font:normal 24px Georgia,serif}
@@ -39,24 +34,15 @@ td.today .n{background:#17697a;color:#fff}
 #box input{width:100%;height:44px;font-size:16px;border:1px solid #b9c3cd;border-radius:8px;padding:0 10px;-webkit-appearance:none}
 #box p{font-size:14px;color:#5d6b79;margin:6px 0}
 #box .row{margin-top:18px;text-align:right}
-@media (orientation:portrait){
- #cal,#side{float:none;width:100%}
- #cal{padding:0 0 12px}
- #side{height:auto;min-height:260px}
- td{height:10vh}
-}
 </style>
 </head>
 <body>
 <div id="app">
  <header>
   <h1 id="title"></h1>
-  <div class="bar">
-   <button id="prev">&#8249;</button><button id="today">Today</button><button id="next">&#8250;</button><button id="set" class="pri">Settings</button>
-  </div>
+  <div class="bar"><span id="status"></span><button id="set" class="pri">Settings</button></div>
  </header>
  <div id="cal"></div>
- <div id="side"><h2 id="dayh"></h2><div id="list"></div><div id="status"></div></div>
 </div>
 
 <div id="ov"><div id="box">
@@ -72,59 +58,58 @@ td.today .n{background:#17697a;color:#fff}
 <script>
 (function () {
  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
- var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+ var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
  var $ = function (i) { return document.getElementById(i); };
  var store = {
   get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
  };
  var cfg = { url: store.get('gs_url') || '', key: store.get('gs_key') || '' };
- var now = new Date();
- var cur = new Date(now.getFullYear(), now.getMonth(), 1);
- var sel = new Date(now.getFullYear(), now.getMonth(), now.getDate());
- var events = {}, gen = 0;
+ var events = {}, gen = 0, shownWeek = '';
 
  function pad(n) { return n < 10 ? '0' + n : '' + n; }
  function key(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
  function parseDay(s) { var p = s.split('-'); return new Date(+p[0], p[1] - 1, +p[2]); }
  function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
  function fmt(d) { var h = d.getHours(), m = d.getMinutes(); return (h % 12 || 12) + (m ? ':' + pad(m) : '') + (h < 12 ? ' am' : ' pm'); }
- function gridStart() { return new Date(cur.getFullYear(), cur.getMonth(), 1 - cur.getDay()); }
+ // The week always starts on the most recent Sunday, so it rolls over by itself.
+ function weekStart() { var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate() - n.getDay()); }
+ function dayOf(s, i) { return new Date(s.getFullYear(), s.getMonth(), s.getDate() + i); }
  function status(t) { $('status').textContent = t; }
 
- function add(it) {
+ function add(it, into) {
   var a = it.a, s = a ? parseDay(it.s) : new Date(it.s), e = a ? parseDay(it.e) : new Date(it.e);
   var d = new Date(s.getFullYear(), s.getMonth(), s.getDate()), i = 0;
   for (; i === 0 || d < e; i++, d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
    var k = key(d);
-   (events[k] = events[k] || []).push({
+   (into[k] = into[k] || []).push({
     t: it.t || '(No title)', s: s, allDay: a, loc: it.l || '',
-    time: a ? 'All day' : fmt(s) + ' to ' + fmt(e), bg: it.c || '#17697a', fg: '#fff'
+    time: a ? 'All day' : fmt(s) + ' to ' + fmt(e), bg: it.c || '#17697a'
    });
   }
  }
 
  // Events arrive through a script tag (JSONP), which works on old Safari without CORS.
  function load() {
-  var g = ++gen, start = gridStart();
-  var end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 42);
-  events = {};
-  if (!cfg.url || !cfg.key) { render(); status('Not linked yet. Open Settings and paste your script address.'); return; }
+  var g = ++gen, start = weekStart(), end = dayOf(start, 7), wk = key(start);
+  if (wk !== shownWeek) { events = {}; shownWeek = wk; }
+  render();
+  if (!cfg.url || !cfg.key) { status('Not linked yet. Open Settings.'); return; }
   status('Loading…');
   var name = 'cb' + g, s = document.createElement('script'), done = false;
   function cleanup() { window[name] = function () {}; if (s.parentNode) s.parentNode.removeChild(s); }
   window[name] = function (d) {
    if (g !== gen) return;
    done = true; cleanup();
-   if (d.error) { render(); status(d.error); return; }
-   d.items.forEach(add);
-   for (var k in events) events[k].sort(function (a, b) { return (b.allDay - a.allDay) || (a.s - b.s); });
-   render(); status('Updated ' + fmt(new Date()));
+   if (d.error) { status(d.error); return; }
+   var fresh = {};
+   d.items.forEach(function (it) { add(it, fresh); });
+   for (var k in fresh) fresh[k].sort(function (a, b) { return (b.allDay - a.allDay) || (a.s - b.s); });
+   events = fresh; render(); status('Updated ' + fmt(new Date()));
   };
   setTimeout(function () {
    if (done || g !== gen) return;
-   cleanup(); render();
-   status('No response. Check the address, and that the script is shared with Anyone.');
+   cleanup(); status('No response. Check the address and sharing.');
   }, 20000);
   s.src = cfg.url + (cfg.url.indexOf('?') > -1 ? '&' : '?') + 'key=' + encodeURIComponent(cfg.key) +
    '&start=' + encodeURIComponent(start.toISOString()) + '&end=' + encodeURIComponent(end.toISOString()) + '&callback=' + name;
@@ -132,55 +117,20 @@ td.today .n{background:#17697a;color:#fff}
  }
 
  function render() {
-  $('title').textContent = MONTHS[cur.getMonth()] + ' ' + cur.getFullYear();
-  var s = gridStart(), tk = key(new Date()), sk = key(sel), h = '<table><tr>', r, c, i;
-  for (i = 0; i < 7; i++) h += '<th>' + DAYS[i].slice(0, 3) + '</th>';
-  h += '</tr>';
-  for (r = 0; r < 6; r++) {
-   h += '<tr>';
-   for (c = 0; c < 7; c++) {
-    var d = new Date(s.getFullYear(), s.getMonth(), s.getDate() + r * 7 + c), k = key(d), list = events[k] || [];
-    var cls = (d.getMonth() !== cur.getMonth() ? 'out ' : '') + (k === tk ? 'today ' : '') + (k === sk ? 'sel' : '');
-    h += '<td class="' + cls + '" data-k="' + k + '"><span class="n">' + d.getDate() + '</span>';
-    for (i = 0; i < list.length && i < 3; i++) h += '<span class="ev" style="background:' + list[i].bg + ';color:' + list[i].fg + '">' + esc(list[i].t) + '</span>';
-    if (list.length > 3) h += '<div class="more">+' + (list.length - 3) + ' more</div>';
-    h += '</td>';
+  var s = weekStart(), e = dayOf(s, 6), tk = key(new Date()), i, j, h1 = '<tr>', h2 = '<tr>';
+  $('title').textContent = MONTHS[s.getMonth()] + ' ' + s.getDate() + ' to ' + (e.getMonth() !== s.getMonth() ? MONTHS[e.getMonth()] + ' ' : '') + e.getDate() + ', ' + e.getFullYear();
+  for (i = 0; i < 7; i++) {
+   var d = dayOf(s, i), k = key(d), cls = k === tk ? 'today' : '', list = events[k] || [], c = '';
+   for (j = 0; j < list.length; j++) {
+    var ev = list[j];
+    c += '<div class="item" style="border-left-color:' + ev.bg + '"><b>' + esc(ev.t) + '</b><span>' + ev.time + '</span>' + (ev.loc ? '<span>' + esc(ev.loc) + '</span>' : '') + '</div>';
    }
-   h += '</tr>';
+   h1 += '<th class="' + cls + '">' + DAYS[i] + ' <b>' + d.getDate() + '</b></th>';
+   h2 += '<td class="' + cls + '"><div class="col">' + (c || '<div class="empty">Nothing scheduled</div>') + '</div></td>';
   }
-  $('cal').innerHTML = h + '</table>';
-  renderDay();
+  $('cal').innerHTML = '<table>' + h1 + '</tr>' + h2 + '</tr></table>';
  }
 
- function renderDay() {
-  $('dayh').textContent = DAYS[sel.getDay()] + ', ' + MONTHS[sel.getMonth()] + ' ' + sel.getDate();
-  var list = events[key(sel)] || [], h = '', i;
-  for (i = 0; i < list.length; i++) {
-   var e = list[i];
-   h += '<div class="item" style="border-left-color:' + e.bg + '"><b>' + esc(e.t) + '</b><span>' + e.time + '</span>' + (e.loc ? '<span>' + esc(e.loc) + '</span>' : '') + '</div>';
-  }
-  $('list').innerHTML = h || '<div class="empty">Nothing scheduled.</div>';
- }
-
- function go(n) { cur = new Date(cur.getFullYear(), cur.getMonth() + n, 1); sel = new Date(cur); load(); }
-
- $('cal').onclick = function (e) {
-  var t = e.target;
-  while (t && t.tagName !== 'TD') t = t.parentNode;
-  if (!t || !t.getAttribute('data-k')) return;
-  sel = parseDay(t.getAttribute('data-k'));
-  if (sel.getMonth() !== cur.getMonth()) { cur = new Date(sel.getFullYear(), sel.getMonth(), 1); load(); } else render();
- };
- var x0 = null;
- $('cal').addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, false);
- $('cal').addEventListener('touchend', function (e) {
-  if (x0 === null) return;
-  var dx = e.changedTouches[0].clientX - x0; x0 = null;
-  if (Math.abs(dx) > 90) go(dx < 0 ? 1 : -1);
- }, false);
- $('prev').onclick = function () { go(-1); };
- $('next').onclick = function () { go(1); };
- $('today').onclick = function () { var n = new Date(); cur = new Date(n.getFullYear(), n.getMonth(), 1); sel = new Date(n.getFullYear(), n.getMonth(), n.getDate()); load(); };
  $('set').onclick = function () { $('f-url').value = cfg.url; $('f-key').value = cfg.key; $('ov').style.display = 'block'; };
  $('close').onclick = function () { $('ov').style.display = 'none'; };
  $('save').onclick = function () {
@@ -189,8 +139,9 @@ td.today .n{background:#17697a;color:#fff}
   $('ov').style.display = 'none'; load();
  };
 
- render(); load();
+ load();
  setInterval(load, 300000);
+ window.addEventListener('focus', load, false);
 })();
 </script>
 </body>
